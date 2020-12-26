@@ -1,94 +1,91 @@
-""" SHEST FASTAPI SERVER """
+""" Shest Api Server """
 
+from CONSTANTS import KEY
 from cryptography.fernet import Fernet
 from fastapi import FastAPI, Request
-from os import popen
-from uvicorn import run
 from fastapi.responses import StreamingResponse
-
+from os import popen, getcwd
+from os.path import join
+from pathlib import Path
+from uvicorn import run
 
 app = FastAPI()
 
 
-def load_key():
-    """Load the previously generated key"""
-
-    with open('secret.key', 'r') as file:
-        return file.read()
-
-
-def encrypt_message(message: str):
+def encrypt_message(message: str) -> bytes:
     """
-    Encrypts a message"
+    Encrypt a message
+
     :param message: A regular message.
     :return: The encrypted message.
     """
 
-    key = load_key()
-    f = Fernet(key)
+    f = Fernet(KEY)
     message = message.encode()
     encrypted_message = f.encrypt(message)
     return encrypted_message
 
 
-def decrypt_message(encrypted_message):
+def decrypt_message(encrypted_message: bytes) -> str:
     """
-    Decrypts an encrypted message
+    Decrypt an encrypted message
+
     :param encrypted_message: The encrypted message to decrypt.
     :return: The decrypted message.
     """
 
-    key = load_key()
-    f = Fernet(key)
+    f = Fernet(KEY)
     decrypted_message = f.decrypt(encrypted_message)
     return decrypted_message
 
 
-async def stream_back(file_name: str):
+async def read_file(file_name: str) -> bytes:
     """
     Yield file content in chunks
+
     :param file_name: A file name.
     :return: Chunks of a file.
     """
 
-    with open(f"C:\\Users\\Elad\\PycharmProjects\\SHEST\\"
-              f"files\\{file_name}", 'r') as file:
+    with Path(join(getcwd(), f'files\\{file_name}'), 'r').open() as file:
         for chunk in file:
             yield encrypt_message(chunk)
 
 
 @app.put("/download/")
-async def exec_download(request: Request):
+async def exec_download(request: Request) -> StreamingResponse:
     """
-    Configure a path for download commands
+    Stream back requested files's content
+
     :param request: An encrypted download request containing a file_name.
     :return: An encrypted streaming response of a file content in chunks.
     """
 
     data = await request.body()
     file_name = decrypt_message(data).decode()
-    return StreamingResponse(stream_back(file_name))
+    return StreamingResponse(read_file(file_name))
 
 
 @app.put("/upload/{file_name}")
-async def upload(request: Request, file_name: str, mode='a'):
+async def exec_upload(request: Request, file_name: str, mode='a') -> None:
     """
-    Configure a path for upload commands
+    Write a given chunk of a file content into a file in a specific location
+
     :param request: An encrypted upload command.
     :param file_name: A file name given in the path.
     :param mode: The mode of the file: append or rewrite.
     """
 
     data = await request.body()
-    with open(f"C:\\Users\\Elad\\PycharmProjects\\SHEST\\files\\{file_name}",
-              mode) as file:
+    with Path(join(getcwd(), f'files\\{file_name}'), mode).open() as file:
         file.write(decrypt_message(data).decode())
 
 
 @app.put("/regular/")
-async def regular(request: Request):
+async def run_regular_command(request: Request) -> bytes:
     """
-    Configure a path for regular commands
+    Run a command and response it's output
+
     :param request: An encrypted command.
     :return: An encrypted output for the given command.
     """
