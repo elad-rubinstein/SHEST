@@ -1,12 +1,11 @@
-""" Shest Api Server """
+""" Shest (Shell Over REST) Api Server """
 
-from CONSTANTS import KEY
+from os import popen
+from pathlib import Path
+
 from cryptography.fernet import Fernet
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
-from os import popen, getcwd
-from os.path import join
-from pathlib import Path
 from uvicorn import run
 
 app = FastAPI()
@@ -20,7 +19,7 @@ def encrypt_message(message: str) -> bytes:
     :return: The encrypted message.
     """
 
-    f = Fernet(KEY)
+    f = Fernet("BccKLSpQGIdcP5CYpEQ-nPEQhMuNmFMguTkf7gyyIf0=")
     message = message.encode()
     encrypted_message = f.encrypt(message)
     return encrypted_message
@@ -34,7 +33,7 @@ def decrypt_message(encrypted_message: bytes) -> str:
     :return: The decrypted message.
     """
 
-    f = Fernet(KEY)
+    f = Fernet("BccKLSpQGIdcP5CYpEQ-nPEQhMuNmFMguTkf7gyyIf0=")
     decrypted_message = f.decrypt(encrypted_message)
     return decrypted_message
 
@@ -47,7 +46,7 @@ async def read_file(file_name: str) -> bytes:
     :return: Chunks of a file.
     """
 
-    with Path(join(getcwd(), f'files\\{file_name}'), 'r').open() as file:
+    with Path.cwd().joinpath(f'files\\{file_name}').open(mode='r') as file:
         for chunk in file:
             yield encrypt_message(chunk)
 
@@ -55,7 +54,7 @@ async def read_file(file_name: str) -> bytes:
 @app.put("/download/")
 async def exec_download(request: Request) -> StreamingResponse:
     """
-    Stream back requested files's content
+    Stream back the requested file's content
 
     :param request: An encrypted download request containing a file_name.
     :return: An encrypted streaming response of a file content in chunks.
@@ -67,7 +66,7 @@ async def exec_download(request: Request) -> StreamingResponse:
 
 
 @app.put("/upload/{file_name}")
-async def exec_upload(request: Request, file_name: str, mode='a') -> None:
+async def exec_upload(request: Request, file_name: str, mode: str):
     """
     Write a given chunk of a file content into a file in a specific location
 
@@ -77,7 +76,7 @@ async def exec_upload(request: Request, file_name: str, mode='a') -> None:
     """
 
     data = await request.body()
-    with Path(join(getcwd(), f'files\\{file_name}'), mode).open() as file:
+    with Path.cwd().joinpath(f'files\\{file_name}').open(mode=mode) as file:
         file.write(decrypt_message(data).decode())
 
 
